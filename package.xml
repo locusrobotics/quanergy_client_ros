@@ -11,5 +11,6 @@
   <build_depend>sensor_msgs</build_depend>
   <run_depend>sensor_msgs</run_depend>
   <build_depend>pcl_ros</build_depend>
+  <build_depend>libflann-dev</build_depend>
   <run_depend>pcl_ros</run_depend>
 </package>

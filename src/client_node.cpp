@@ -7,6 +7,7 @@
 
 // publisher module
 #include <quanergy_client_ros/simple_publisher.h>
+#include <quanergy_client_ros/scan_publisher.h>
 
 #include <quanergy/client/version.h>
 
@@ -198,9 +199,11 @@ int main(int argc, char** argv)
   // we may need multiple for separate_return_topics
   std::list<quanergy::pipeline::SensorPipeline> pipelines;
 
-  // create list (because it is noncopyable) of ROS publishers to consume point clouds and publish them
+  // create list (because it is noncopyable) of ROS cloud_publishers to consume point clouds and publish them
+  // also create publishers for laser scans
   // we may need multiple for separate_return_topics
-  std::list<SimplePublisher<quanergy::PointXYZIR>> publishers;
+  std::list<SimplePublisher<quanergy::PointXYZIR>> cloud_publishers;
+  std::list<ScanPublisher> scan_publishers;
 
   // create vector of threads for publisher(s)
   // we may need multiple for separate_return_topics
@@ -236,8 +239,10 @@ int main(int argc, char** argv)
     auto& pipeline = pipelines.back();
 
     // create publisher and get reference to it
-    publishers.emplace_back(nh, topic, ros_node_settings.use_ros_time);
-    auto& publisher = publishers.back();
+    cloud_publishers.emplace_back(nh, topic, ros_node_settings.use_ros_time);
+    scan_publishers.emplace_back(nh, topic + "_scan", pipeline_settings.frame, ros_node_settings.use_ros_time);
+    auto& cloud_publisher = cloud_publishers.back();
+    auto& scan_publisher = scan_publishers.back();
 
     if (ros_node_settings.separate_return_topics)
     {
@@ -265,27 +270,45 @@ int main(int argc, char** argv)
     }
 
     // connect the pipeline to the publisher
-    connections.push_back(pipeline.connect(
-        [&publisher](const boost::shared_ptr<pcl::PointCloud<quanergy::PointXYZIR>>& pc){ publisher.slot(pc); }
+    connections.push_back(pipeline.connect_cloud(
+        [&cloud_publisher](const boost::shared_ptr<pcl::PointCloud<quanergy::PointXYZIR>>& pc){ cloud_publisher.slot(pc); }
+    ));
+
+    connections.push_back(pipeline.connect_scan(
+        [&scan_publisher](const boost::shared_ptr<pcl::PointCloud<quanergy::PointHVDIR>>& pc){ scan_publisher.slot(pc); }
     ));
 
     // create publisher thread
     publisher_threads.emplace_back(
-      [&publisher, &client_mutex, &client, &publishers_count, &publisher_cv]
+      [&cloud_publisher, &client_mutex, &client, &publishers_count, &publisher_cv]
       {
         std::unique_lock<std::mutex> lock(client_mutex);
         ++publishers_count;
         lock.unlock();
         publisher_cv.notify_one();
 
-        publisher.run();
+        cloud_publisher.run();
+        lock.lock();
+        client.stop();
+      }
+    );
+
+    publisher_threads.emplace_back(
+      [&scan_publisher, &client_mutex, &client, &publishers_count, &publisher_cv]
+      {
+        std::unique_lock<std::mutex> lock(client_mutex);
+        ++publishers_count;
+        lock.unlock();
+        publisher_cv.notify_one();
+
+        scan_publisher.run();
         lock.lock();
         client.stop();
       }
     );
   }
 
-  // this makes sure the publishers have started; without it, sometimes the client starts first (due to OS scheduling)
+  // this makes sure the cloud_publishers have started; without it, sometimes the client starts first (due to OS scheduling)
   // and then we get a bunch of warning messages related to data coming in without being consumed
   {
     std::unique_lock<std::mutex> lock(client_mutex);

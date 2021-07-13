@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies are found with CMake's conventions
 find_package(QuanergyClient REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io)
+find_package(FLANN REQUIRED)
 
 # Workaround required due to a bug in VTK6 for Ubuntu 16.04
 # See https://bugs.launchpad.net/ubuntu/+source/vtk6/+bug/1573234
@@ -37,6 +38,7 @@ include_directories(include)
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${FLANN_INCLUDE_DIR}
 )
 
 link_directories(${PCL_LIBRARY_DIRS})
@@ -56,6 +58,7 @@ add_executable(client_node
  target_link_libraries(client_node
    ${catkin_LIBRARIES}
    ${PCL_LIBRARIES}
+   ${FLANN_LIBRARY}
    quanergy_client
  )
 
