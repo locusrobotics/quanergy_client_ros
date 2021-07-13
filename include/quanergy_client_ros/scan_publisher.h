@@ -10,6 +10,7 @@
 
 #include <mutex>
 
+#include <angles/angles.h>
 #include <quanergy/common/point_hvdir.h>
 #include <pcl/point_cloud.h>
 
@@ -23,45 +24,69 @@ public:
   using Cloud = pcl::PointCloud<quanergy::PointHVDIR>;
   using CloudConstPtr = typename Cloud::ConstPtr;
 
-  ScanPublisher(ros::NodeHandle& nh, std::string topic, std::string frame_id, bool use_ros_time = false)
+  ScanPublisher(
+    ros::NodeHandle& nh,
+    const std::string& topic,
+    float min_range,
+    float max_range,
+    double frame_rate,
+    bool use_ros_time = true)
     : use_ros_time_(use_ros_time)
   {
-    topic = nh.resolveName(topic);
-    publisher_ = nh.advertise<sensor_msgs::LaserScan>(topic, 10);
-    scan_.header.frame_id = frame_id;
+    publisher_ = nh.advertise<sensor_msgs::LaserScan>(nh.resolveName(topic), 10);
+
+    scan_.range_min = min_range;
+    scan_.range_max = max_range;
+    scan_.scan_time = 1.0f / static_cast<float>(frame_rate);
   }
 
   void slot(const CloudConstPtr& cloud)
   {
     if(!ros::ok() || !cloud || cloud->empty()) return;
 
-    scan_.angle_min = cloud->front().h;
-    scan_.angle_max = cloud->back().h;
+    const auto& cloud_deref = *cloud;
 
-    scan_.ranges.resize(cloud->size());
-    scan_.intensities.resize(cloud->size());
+    scan_.ranges.reserve(cloud_deref.size());
+    scan_.intensities.reserve(cloud_deref.size());
+    scan_.ranges.clear();
+    scan_.intensities.clear();
 
-    // scan.time_increment = ?
-    scan_.range_min = std::numeric_limits<float>::max();
-    scan_.range_max = std::numeric_limits<float>::lowest();  // Should have a fixed value
+    size_t start_i = 0;
+
+    for (size_t i = 0; i < cloud_deref.size(); ++i)
+    {
+      const auto& point = cloud_deref[i];
+
+      if (i > 0 && cloud_deref[i - 1].h > point.h)
+      {
+        scan_.ranges.back() = point.d;
+        scan_.intensities.back() = point.intensity;
+        start_i = i;
+        continue;
+      }
+
+      scan_.ranges.push_back(point.d);
+      scan_.intensities.push_back(point.intensity);
+    }
 
     scan_.angle_increment = 0.0;
+    scan_.time_increment = 0.0;
 
-    if (cloud->size() > 1)
+    if (cloud_deref.size() > 0)
+    {
+      scan_.angle_increment = (cloud_deref.back().h - cloud_deref[start_i].h) / static_cast<float>(cloud_deref.size());
+      scan_.time_increment = scan_.scan_time / static_cast<float>(cloud_deref.size());
+    }
+
+    scan_.angle_min = angles::normalize_angle(cloud_deref[start_i].h);
+    scan_.angle_max = angles::normalize_angle(cloud_deref.back().h);
+    if (cloud_deref.size() > 1)
     {
       scan_.angle_increment = (scan_.angle_max - scan_.angle_min) / static_cast<float>(cloud->size() - 1);
     }
 
-    for (const auto& point : *cloud)
-    {
-      scan_.range_min = std::min(point.d, scan_.range_min);
-      scan_.range_max = std::max(point.d, scan_.range_max);
-    }
-
-    if (use_ros_time_)
-    {
-      scan_.header.stamp = ros::Time::now();
-    }
+    scan_.header.stamp.fromSec(static_cast<double>(cloud->header.stamp) / 1e6);
+    scan_.header.frame_id = cloud->header.frame_id;
 
     // don't block if publisher isn't available
     std::unique_lock<std::timed_mutex> lock(publisher_mutex_, std::chrono::milliseconds(10));

@@ -5,6 +5,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
+  angles
   roscpp
   sensor_msgs
   pcl_ros
@@ -13,7 +14,12 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies are found with CMake's conventions
 find_package(QuanergyClient REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io)
-find_package(FLANN REQUIRED)
+find_package(FLANN QUIET)
+
+if (NOT ${FLANN_FOUND})
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(flann REQUIRED)
+endif()
 
 # Workaround required due to a bug in VTK6 for Ubuntu 16.04
 # See https://bugs.launchpad.net/ubuntu/+source/vtk6/+bug/1573234

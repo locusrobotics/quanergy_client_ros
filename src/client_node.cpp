@@ -239,8 +239,14 @@ int main(int argc, char** argv)
     auto& pipeline = pipelines.back();
 
     // create publisher and get reference to it
-    cloud_publishers.emplace_back(nh, topic, ros_node_settings.use_ros_time);
-    scan_publishers.emplace_back(nh, topic + "_scan", pipeline_settings.frame, ros_node_settings.use_ros_time);
+    cloud_publishers.emplace_back(nh, topic + "_cloud", ros_node_settings.use_ros_time);
+    scan_publishers.emplace_back(
+      nh,
+      topic,
+      pipeline_settings.frame_rate,
+      pipeline_settings.min_distance,
+      pipeline_settings.max_distance,
+      ros_node_settings.use_ros_time);
     auto& cloud_publisher = cloud_publishers.back();
     auto& scan_publisher = scan_publishers.back();
 
