@@ -27,9 +27,9 @@ public:
   ScanPublisher(
     ros::NodeHandle& nh,
     const std::string& topic,
+    double frame_rate,
     float min_range,
     float max_range,
-    double frame_rate,
     bool use_ros_time = true)
     : use_ros_time_(use_ros_time)
   {
