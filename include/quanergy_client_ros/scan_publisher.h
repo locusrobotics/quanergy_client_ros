@@ -1,28 +1,50 @@
-/****************************************************************
- **                                                            **
- **  Copyright(C) 2020 Quanergy Systems. All Rights Reserved.  **
- **  Contact: http://www.quanergy.com                          **
- **                                                            **
- ****************************************************************/
-
+/*
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2021, Locus Robotics
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the copyright holder nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ */
 #ifndef QUANERGY_CLIENT_ROS_LASERSCAN_PUBLISHER_H
 #define QUANERGY_CLIENT_ROS_LASERSCAN_PUBLISHER_H
 
-#include <mutex>
-
-#include <angles/angles.h>
-#include <quanergy/common/point_hvdir.h>
 #include <pcl/point_cloud.h>
-
+#include <quanergy/common/point_hvdir.h>
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
 
-/** \brief SimplePublisher publishes point clouds of type PointT */
+#include <mutex>
+
 class ScanPublisher
 {
 public:
-  using Cloud = pcl::PointCloud<quanergy::PointHVDIR>;
-  using CloudConstPtr = typename Cloud::ConstPtr;
+  using CloudConstPtr = pcl::PointCloud<quanergy::PointHVDIR>::ConstPtr;
 
   ScanPublisher(
     ros::NodeHandle& nh,
@@ -33,7 +55,7 @@ public:
     bool use_ros_time = true)
     : use_ros_time_(use_ros_time)
   {
-    publisher_ = nh.advertise<sensor_msgs::LaserScan>(nh.resolveName(topic), 10);
+    publisher_ = nh.advertise<sensor_msgs::LaserScan>(topic, 10);
 
     scan_.range_min = min_range;
     scan_.range_max = max_range;
@@ -69,21 +91,11 @@ public:
       scan_.intensities.push_back(point.intensity);
     }
 
-    scan_.angle_increment = 0.0;
-    scan_.time_increment = 0.0;
+    scan_.time_increment = scan_.scan_time / static_cast<float>(cloud_deref.size());
 
-    if (cloud_deref.size() > 0)
-    {
-      scan_.angle_increment = (cloud_deref.back().h - cloud_deref[start_i].h) / static_cast<float>(cloud_deref.size());
-      scan_.time_increment = scan_.scan_time / static_cast<float>(cloud_deref.size());
-    }
-
-    scan_.angle_min = angles::normalize_angle(cloud_deref[start_i].h);
-    scan_.angle_max = angles::normalize_angle(cloud_deref.back().h);
-    if (cloud_deref.size() > 1)
-    {
-      scan_.angle_increment = (scan_.angle_max - scan_.angle_min) / static_cast<float>(cloud->size() - 1);
-    }
+    scan_.angle_min = cloud_deref[start_i].h;
+    scan_.angle_max = cloud_deref.back().h;
+    scan_.angle_increment = (scan_.angle_max - scan_.angle_min) / static_cast<float>(cloud_deref.size() - start_i);
 
     scan_.header.stamp.fromSec(static_cast<double>(cloud->header.stamp) / 1e6);
     scan_.header.frame_id = cloud->header.frame_id;
@@ -94,22 +106,6 @@ public:
     {
       publisher_.publish(scan_);
     }
-  }
-
-  /** \brief run the publisher; blocks until done */
-  void run(double frequency = 50.)
-  {
-    ros::Rate r(frequency);
-    while (ros::ok())
-    {
-      ros::spinOnce();
-      r.sleep();
-    }
-  }
-
-  void stop()
-  {
-    ros::shutdown();
   }
 
 private:

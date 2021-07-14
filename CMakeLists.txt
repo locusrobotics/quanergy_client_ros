@@ -5,7 +5,6 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 ## Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
-  angles
   roscpp
   sensor_msgs
   pcl_ros

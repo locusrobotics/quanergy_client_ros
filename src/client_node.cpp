@@ -307,7 +307,7 @@ int main(int argc, char** argv)
         lock.unlock();
         publisher_cv.notify_one();
 
-        scan_publisher.run();
+        ros::spin();
         lock.lock();
         client.stop();
       }
