@@ -50,15 +50,15 @@ public:
     ros::NodeHandle& nh,
     const std::string& topic,
     double frame_rate,
-    float min_range,
-    float max_range,
+    float range_min,
+    float range_max,
     bool use_ros_time = true)
     : use_ros_time_(use_ros_time)
   {
     publisher_ = nh.advertise<sensor_msgs::LaserScan>(topic, 10);
 
-    scan_.range_min = min_range;
-    scan_.range_max = max_range;
+    scan_.range_min = range_min;
+    scan_.range_max = range_max;
     scan_.scan_time = 1.0f / static_cast<float>(frame_rate);
   }
 
@@ -79,12 +79,12 @@ public:
     {
       const auto& point = cloud_deref[i];
 
+      // Some scans have points near pi at the start (possible left over from a previous scan?)
       if (i > 0 && cloud_deref[i - 1].h > point.h)
       {
-        scan_.ranges.back() = point.d;
-        scan_.intensities.back() = point.intensity;
+        scan_.ranges.clear();
+        scan_.intensities.clear();
         start_i = i;
-        continue;
       }
 
       scan_.ranges.push_back(point.d);

@@ -314,7 +314,7 @@ int main(int argc, char** argv)
     );
   }
 
-  // this makes sure the cloud_publishers have started; without it, sometimes the client starts first (due to OS scheduling)
+  // this makes sure the publishers have started; without it, sometimes the client starts first (due to OS scheduling)
   // and then we get a bunch of warning messages related to data coming in without being consumed
   {
     std::unique_lock<std::mutex> lock(client_mutex);
