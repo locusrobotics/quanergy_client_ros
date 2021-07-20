@@ -97,7 +97,7 @@ public:
     scan_.angle_max = cloud_deref.back().h;
     scan_.angle_increment = (scan_.angle_max - scan_.angle_min) / static_cast<float>(cloud_deref.size() - start_i);
 
-    scan_.header.stamp.fromSec(static_cast<double>(cloud->header.stamp) / 1e6);
+    scan_.header.stamp = ros::Time::now();
     scan_.header.frame_id = cloud->header.frame_id;
 
     // don't block if publisher isn't available
